@@ -5,34 +5,35 @@ const cors = require('cors');
 
 const app = express();
 app.use(cors());
-const server = http.createServer(app);
-const io = new Server(server, { cors: { origin: "*" } });
 
-const activeRooms = {};
+const server = http.createServer(app);
+const io = new Server(server, {
+    cors: {
+        origin: "*",
+        methods: ["GET", "POST"]
+    }
+});
 
 io.on('connection', (socket) => {
-    // जब कोई रूम जॉइन करे
+    // रूम जॉइन करना
     socket.on('join-room', (data) => {
         socket.join(data.roomId);
-        
-        // 30 मिनट का ऑटो-डिलीट टाइमर
-        if (!activeRooms[data.roomId]) {
-            activeRooms[data.roomId] = setTimeout(() => {
-                io.to(data.roomId).emit('error-msg', '30 Minutes Over! Connection Closed.');
-                delete activeRooms[data.roomId];
-            }, 1800000); 
-        }
+        console.log(`User joined room: ${data.roomId}`);
     });
 
-    // एन्क्रिप्टेड मैसेज रिसीव और सेंड करना
+    // एन्क्रिप्टेड मैसेज भेजना
     socket.on('send-msg', (data) => {
-        // 'data' में अब { roomId, user, text } तीनों होंगे
-        io.to(data.roomId).emit('receive-msg', {
-            user: data.user,
-            text: data.text
-        });
+        // data में roomId, user, और encrypted text है
+        io.to(data.roomId).emit('receive-msg', data);
+    });
+
+    socket.on('disconnect', () => {
+        console.log('User disconnected');
     });
 });
 
-const PORT = process.env.PORT || 3000;
-server.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+// Render अक्सर 10000 पोर्ट का इस्तेमाल करता है
+const PORT = process.env.PORT || 10000;
+server.listen(PORT, () => {
+    console.log(`Server is running on port ${PORT}`);
+});
