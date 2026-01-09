@@ -5,7 +5,6 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UTK Stealth Chat</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
-    <script src="https://cdn.metered.ca/sdk/frame/1.4.3/sdk-frame.min.js"></script>
     <style>
         body { font-family: sans-serif; background: #000; color: #fff; margin: 0; padding: 0; overflow: hidden; }
         #chat-container { display: flex; flex-direction: column; height: 100vh; }
@@ -14,16 +13,10 @@
         input { flex-grow: 1; padding: 10px; border: none; border-radius: 5px; background: #222; color: #fff; }
         button { padding: 10px 20px; background: #28a745; color: white; border: none; cursor: pointer; border-radius: 5px; font-weight: bold; }
         
-        /* Video Overlay */
-        #video-overlay { 
-            display: none; position: fixed; top: 0; left: 0; 
-            width: 100%; height: 100%; background: #000; z-index: 1000; 
-        }
-        #metered-frame-container { width: 100%; height: 90%; }
+        #video-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 1000; }
+        #meet-frame { width: 100%; height: 90%; border: none; }
         .close-vid { width: 100%; height: 10%; background: #dc3545; border: none; color: white; font-size: 18px; cursor: pointer; }
-        
-        .join-box { text-align: center; padding-top: 100px; }
-        .join-btn { padding: 20px 40px; background: #007bff; color: white; border: none; border-radius: 10px; font-size: 20px; cursor: pointer; }
+        .perm-box { text-align: center; padding-top: 100px; }
     </style>
 </head>
 <body>
@@ -38,19 +31,23 @@
 </div>
 
 <div id="video-overlay">
-    <div id="metered-frame-container"></div>
-    <button class="close-vid" onclick="closeVideo()">कॉल काटें</button>
+    <div id="video-content" style="height: 100%;">
+        <div id="permission-screen" class="perm-box">
+            <button onclick="startCameraForce()" style="padding:20px; font-size:20px; background:#28a745; color:white; border:none; border-radius:10px;">कैमरा चालू करें</button>
+            <p style="margin-top:15px; color:#aaa;">(परमिशन मांगने पर 'Allow' दबाएँ)</p>
+        </div>
+        <iframe id="meet-frame" allow="camera; microphone; fullscreen; display-capture;" style="display:none;"></iframe>
+        <button class="close-vid" onclick="closeVideo()">कॉल काटें</button>
+    </div>
 </div>
 
 <script>
-    // १. अपना रेंडर लिंक यहाँ पक्का करें
     const socket = io('https://class-7ly0.onrender.com'); 
-    const currentRoom = "publicroom"; // डैशबोर्ड वाला रूम नाम
+    const currentRoom = "publicroom"; 
     let userName = "User-" + Math.floor(Math.random() * 1000);
 
     socket.emit('join-room', currentRoom);
 
-    // मैसेज भेजने का लॉजिक
     function sendMessage() {
         const msg = document.getElementById('msg-input').value;
         if(msg) {
@@ -67,48 +64,44 @@
         document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
     });
 
-    // कॉल सिग्नल मिलने पर
     socket.on('video-started', () => {
-        showJoinScreen();
+        document.getElementById('video-overlay').style.display = 'block';
     });
 
     function triggerVideo() {
         socket.emit('start-video-signal', currentRoom);
-        showJoinScreen();
-    }
-
-    // २. स्क्रीन पर बटन दिखाना ताकि ब्राउज़र परमिशन ब्लॉक न करे
-    function showJoinScreen() {
         document.getElementById('video-overlay').style.display = 'block';
-        const container = document.getElementById('metered-frame-container');
-        container.innerHTML = `
-            <div class="join-box">
-                <button class="join-btn" onclick="connectVideo()">कॉल में शामिल हों (Join Call)</button>
-                <p style="color:#888; margin-top:15px;">कैमरा चालू करने के लिए बटन दबाएँ</p>
-            </div>`;
     }
 
-    // ३. असली वीडियो कनेक्शन
-    function connectVideo() {
-        const container = document.getElementById('metered-frame-container');
-        container.innerHTML = ""; // बटन हटाएँ
-
-        var frame = new MeteredFrame();
-        frame.init({
-            roomURL: "60483901.metered.live/publicroom",
-            container: container,
-            skipPrejoin: true // बटन दबाने के बाद सीधे अंदर
-        }).catch(err => {
-            alert("Camera Error: कृपया ब्राउज़र सेटिंग्स में कैमरा Allow करें।");
-            closeVideo();
-        });
+    // यही वह फंक्शन है जो परमिशन को 'Force' करेगा
+    async function startCameraForce() {
+        try {
+            // १. ब्राउज़र से सीधे कैमरा परमिशन मांगें
+            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
+            
+            // २. अगर परमिशन मिल गई, तो स्ट्रीम बंद करें और Iframe लोड करें
+            stream.getTracks().forEach(track => track.stop());
+            
+            const frame = document.getElementById('meet-frame');
+            frame.src = `https://60483901.metered.live/${currentRoom}?skipPrejoin=true`;
+            frame.style.display = "block";
+            document.getElementById('permission-screen').style.display = "none";
+            
+        } catch (err) {
+            alert("सच यह है कि कैमरा ब्लॉक है। ब्राउज़र के 'Lock' आइकन पर जाकर Allow करें।");
+            console.error(err);
+        }
     }
 
     function closeVideo() {
         document.getElementById('video-overlay').style.display = 'none';
-        document.getElementById('metered-frame-container').innerHTML = '';
+        const frame = document.getElementById('meet-frame');
+        frame.src = "";
+        frame.style.display = "none";
+        document.getElementById('permission-screen').style.display = "block";
     }
 </script>
 
 </body>
 </html>
+
