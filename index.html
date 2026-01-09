@@ -3,44 +3,53 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Encrypted Stealth Chat</title>
+    <title>Encrypted Stealth Chat & Video</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+    <script src='https://meet.jit.si/external_api.js'></script>
     <style>
-        body { font-family: 'Inter', sans-serif; background: #0b0e11; color: #e9edef; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; }
-        #chat-container { width: 95%; max-width: 400px; background: #111b21; padding: 25px; border-radius: 15px; box-shadow: 0 15px 35px rgba(0,0,0,0.7); border: 1px solid #222e35; }
-        h2 { text-align: center; color: #00a884; margin-bottom: 20px; }
+        body { font-family: 'Inter', sans-serif; background: #0b0e11; color: #e9edef; display: flex; justify-content: center; align-items: center; height: 100vh; margin: 0; overflow: hidden; }
+        #chat-container { width: 95%; max-width: 450px; background: #111b21; padding: 20px; border-radius: 15px; border: 1px solid #222e35; position: relative; }
+        h2 { text-align: center; color: #00a884; margin-bottom: 15px; }
         input { width: calc(100% - 24px); padding: 12px; margin-bottom: 12px; border-radius: 8px; border: 1px solid #2a3942; background: #2a3942; color: white; outline: none; }
-        button { width: 100%; padding: 12px; background: #00a884; border: none; color: #111b21; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
-        button:hover { background: #06cf9c; }
-        #messages { height: 350px; overflow-y: auto; padding: 10px; margin-bottom: 15px; background: #0b141a; border-radius: 10px; border: 1px solid #222e35; }
-        .msg-wrap { margin-bottom: 12px; padding: 10px; border-radius: 10px; background: #202c33; border-left: 4px solid #00a884; }
-        .u-name { font-size: 0.75rem; color: #00a884; display: block; margin-bottom: 4px; font-weight: bold; }
-        #chat-box { display: none; }
+        button { padding: 12px; background: #00a884; border: none; color: #111b21; border-radius: 8px; cursor: pointer; font-weight: bold; transition: 0.3s; }
+        .v-btn { background: #ea4335; color: white; width: 100%; margin-top: 10px; }
+        #messages { height: 300px; overflow-y: auto; padding: 10px; margin-bottom: 15px; background: #0b141a; border-radius: 10px; }
+        .msg-wrap { margin-bottom: 12px; padding: 8px; border-radius: 8px; background: #202c33; border-left: 4px solid #00a884; font-size: 0.9rem; }
+        .u-name { font-size: 0.7rem; color: #00a884; display: block; font-weight: bold; }
+        #video-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: black; z-index: 100; }
+        #close-video { position: absolute; top: 20px; right: 20px; z-index: 101; background: red; color: white; padding: 10px; border-radius: 5px; cursor: pointer; }
     </style>
 </head>
 <body>
+
     <div id="chat-container">
         <h2>Stealth Chat</h2>
         <div id="setup">
-            <input type="text" id="user-input" placeholder="Enter Your Name">
-            <input type="password" id="room-input" placeholder="Secret Room ID (Password)">
-            <button onclick="joinRoom()">Enter Secure Room</button>
+            <input type="text" id="user-input" placeholder="Your Name">
+            <input type="password" id="room-input" placeholder="Secret Room ID">
+            <button onclick="joinRoom()" style="width: 100%;">Enter Secure Room</button>
         </div>
 
-        <div id="chat-box">
+        <div id="chat-box" style="display: none;">
             <div id="messages"></div>
             <div style="display: flex; gap: 8px;">
-                <input type="text" id="msg-input" placeholder="Type a message..." style="margin:0;">
-                <button onclick="sendMsg()" style="width: 70px;">Send</button>
+                <input type="text" id="msg-input" placeholder="Type..." style="margin:0;">
+                <button onclick="sendMsg()">Send</button>
             </div>
+            <button class="v-btn" onclick="startVideo()">Start Encrypted Video Call</button>
         </div>
     </div>
 
+    <div id="video-overlay">
+        <div id="close-video" onclick="stopVideo()">End Call</div>
+        <div id="meet" style="height: 100%; width: 100%;"></div>
+    </div>
+
     <script>
-        // REPLACE WITH YOUR RENDER URL
         const socket = io("https://class-7ly0.onrender.com");
         let currentRoom = "", userName = "";
+        let api = null;
 
         function joinRoom() {
             userName = document.getElementById('user-input').value;
@@ -49,13 +58,12 @@
                 socket.emit('join-room', { roomId: currentRoom });
                 document.getElementById('setup').style.display = 'none';
                 document.getElementById('chat-box').style.display = 'block';
-            } else { alert("Both Name & Room ID are required!"); }
+            }
         }
 
         function sendMsg() {
             const text = document.getElementById('msg-input').value;
             if(text) {
-                // Encryption using Room ID as Key
                 const encrypted = CryptoJS.AES.encrypt(text, currentRoom).toString();
                 socket.emit('send-msg', { roomId: currentRoom, user: userName, text: encrypted });
                 document.getElementById('msg-input').value = '';
@@ -64,23 +72,38 @@
 
         socket.on('receive-msg', (data) => {
             try {
-                // Decryption using Room ID
                 const bytes = CryptoJS.AES.decrypt(data.text, currentRoom);
                 const originalText = bytes.toString(CryptoJS.enc.Utf8);
-                
                 if(originalText) {
                     const div = document.createElement('div');
                     div.className = 'msg-wrap';
                     div.innerHTML = `<span class="u-name">${data.user}</span>${originalText}`;
-                    const msgDiv = document.getElementById('messages');
-                    msgDiv.appendChild(div);
-                    msgDiv.scrollTop = msgDiv.scrollHeight;
+                    document.getElementById('messages').appendChild(div);
+                    document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
                 }
-            } catch(e) { console.log("Failed to decrypt message."); }
+            } catch(e) { console.error("Decryption failed."); }
         });
+
+        // Video Call Logic
+        function startVideo() {
+            document.getElementById('video-overlay').style.display = 'block';
+            const domain = 'meet.jit.si';
+            const options = {
+                roomName: 'StealthRoom-' + currentRoom, // Room ID helps keep it secret
+                width: '100%',
+                height: '100%',
+                parentNode: document.querySelector('#meet'),
+                userInfo: { displayName: userName }
+            };
+            api = new JitsiMeetExternalAPI(domain, options);
+        }
+
+        function stopVideo() {
+            if(api) api.dispose();
+            document.getElementById('video-overlay').style.display = 'none';
+        }
 
         socket.on('error-msg', (err) => { alert(err); location.reload(); });
     </script>
 </body>
 </html>
-
