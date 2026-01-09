@@ -6,102 +6,102 @@
     <title>UTK Stealth Chat</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
     <style>
-        body { font-family: sans-serif; background: #000; color: #fff; margin: 0; padding: 0; overflow: hidden; }
-        #chat-container { display: flex; flex-direction: column; height: 100vh; }
-        #messages { flex-grow: 1; overflow-y: auto; padding: 20px; border-bottom: 1px solid #333; }
-        .controls { padding: 10px; display: flex; gap: 10px; background: #111; }
-        input { flex-grow: 1; padding: 10px; border: none; border-radius: 5px; background: #222; color: #fff; }
-        button { padding: 10px 20px; background: #28a745; color: white; border: none; cursor: pointer; border-radius: 5px; font-weight: bold; }
+        :root {
+            --bg: #000; --text: #fff; --msg-bg: #1a1a1a; --primary: #28a745;
+        }
+        [data-theme="light"] {
+            --bg: #f4f4f4; --text: #000; --msg-bg: #fff; --primary: #007bff;
+        }
+        body { font-family: 'Segoe UI', sans-serif; background: var(--bg); color: var(--text); margin: 0; transition: 0.3s; }
         
-        #video-overlay { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: #000; z-index: 1000; }
-        #meet-frame { width: 100%; height: 90%; border: none; }
-        .close-vid { width: 100%; height: 10%; background: #dc3545; border: none; color: white; font-size: 18px; cursor: pointer; }
-        .perm-box { text-align: center; padding-top: 100px; }
+        /* Login Screen */
+        #login-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; height: 100vh; gap: 15px; }
+        .input-box { width: 80%; max-width: 300px; padding: 12px; border: 1px solid #333; border-radius: 8px; background: #111; color: white; }
+        [data-theme="light"] .input-box { background: #fff; color: #000; }
+
+        /* Chat Layout */
+        #chat-screen { display: none; flex-direction: column; height: 100vh; max-width: 800px; margin: auto; border-left: 1px solid #333; border-right: 1px solid #333; }
+        #messages { flex-grow: 1; overflow-y: auto; padding: 20px; display: flex; flex-direction: column; gap: 10px; }
+        .msg { padding: 10px 15px; border-radius: 15px; max-width: 75%; background: var(--msg-bg); box-shadow: 0 2px 5px rgba(0,0,0,0.2); }
+        .my-msg { align-self: flex-end; background: var(--primary); color: white; }
+
+        /* Controls */
+        .controls { padding: 15px; display: flex; gap: 10px; background: var(--msg-bg); border-top: 1px solid #333; }
+        .btn { padding: 10px 20px; border: none; border-radius: 8px; cursor: pointer; font-weight: bold; }
+        .theme-btn { position: fixed; top: 10px; right: 10px; z-index: 100; font-size: 20px; background: none; border: none; cursor: pointer; color: var(--text); }
+
+        /* Mobile Optimization */
+        @media (max-width: 600px) {
+            #chat-screen { border: none; }
+            .msg { max-width: 85%; }
+        }
     </style>
 </head>
 <body>
 
-<div id="chat-container">
-    <div id="messages"></div>
-    <div class="controls">
-        <input type="text" id="msg-input" placeholder="मैसेज लिखें...">
-        <button onclick="sendMessage()">भेजें</button>
-        <button onclick="triggerVideo()" style="background:#007bff;">वीडियो कॉल</button>
-    </div>
+<button class="theme-btn" onclick="toggleTheme()">🌓</button>
+
+<div id="login-screen">
+    <h2>UTK Stealth Login</h2>
+    <input type="text" id="username" class="input-box" placeholder="यूज़रनेम डालें">
+    <input type="password" id="password" class="input-box" placeholder="पासवर्ड डालें">
+    <button class="btn" style="background:#28a745; color:white;" onclick="login()">Chat शुरू करें</button>
 </div>
 
-<div id="video-overlay">
-    <div id="video-content" style="height: 100%;">
-        <div id="permission-screen" class="perm-box">
-            <button onclick="startCameraForce()" style="padding:20px; font-size:20px; background:#28a745; color:white; border:none; border-radius:10px;">कैमरा चालू करें</button>
-            <p style="margin-top:15px; color:#aaa;">(परमिशन मांगने पर 'Allow' दबाएँ)</p>
-        </div>
-        <iframe id="meet-frame" allow="camera; microphone; fullscreen; display-capture;" style="display:none;"></iframe>
-        <button class="close-vid" onclick="closeVideo()">कॉल काटें</button>
+<div id="chat-screen">
+    <div id="messages"></div>
+    <div class="controls">
+        <input type="text" id="msg-input" class="input-box" style="flex-grow:1;" placeholder="मैसेज टाइप करें...">
+        <button class="btn" style="background:var(--primary); color:white;" onclick="sendMessage()">भेजें</button>
     </div>
 </div>
 
 <script>
-    const socket = io('https://class-7ly0.onrender.com'); 
-    const currentRoom = "publicroom"; 
-    let userName = "User-" + Math.floor(Math.random() * 1000);
+    const socket = io('https://class-7ly0.onrender.com'); //
+    let currentUser = "";
+    let room = "StealthRoom101";
 
-    socket.emit('join-room', currentRoom);
+    // लॉगिन फंक्शन
+    function login() {
+        const u = document.getElementById('username').value;
+        const p = document.getElementById('password').value;
+        
+        // कड़वा सच: यहाँ आप अपना पासवर्ड फिक्स कर सकते हैं
+        if(u && p === "1234") { 
+            currentUser = u;
+            document.getElementById('login-screen').style.display = 'none';
+            document.getElementById('chat-screen').style.display = 'flex';
+            socket.emit('join-room', room);
+        } else {
+            alert("गलत पासवर्ड या नाम!");
+        }
+    }
 
+    // मैसेज भेजना
     function sendMessage() {
-        const msg = document.getElementById('msg-input').value;
-        if(msg) {
-            socket.emit('send-message', { roomId: currentRoom, user: userName, text: msg });
+        const text = document.getElementById('msg-input').value;
+        if(text) {
+            socket.emit('send-message', { roomId: room, user: currentUser, text: text });
             document.getElementById('msg-input').value = '';
         }
     }
 
+    // मैसेज प्राप्त करना
     socket.on('receive-message', (data) => {
         const div = document.createElement('div');
-        div.style.marginBottom = "10px";
-        div.innerHTML = `<span style="color:#28a745;">${data.user}:</span> ${data.text}`;
+        const isMe = data.user === currentUser;
+        div.className = `msg ${isMe ? 'my-msg' : ''}`;
+        div.innerHTML = `<b>${data.user}</b><br>${data.text}`;
         document.getElementById('messages').appendChild(div);
         document.getElementById('messages').scrollTop = document.getElementById('messages').scrollHeight;
     });
 
-    socket.on('video-started', () => {
-        document.getElementById('video-overlay').style.display = 'block';
-    });
-
-    function triggerVideo() {
-        socket.emit('start-video-signal', currentRoom);
-        document.getElementById('video-overlay').style.display = 'block';
-    }
-
-    // यही वह फंक्शन है जो परमिशन को 'Force' करेगा
-    async function startCameraForce() {
-        try {
-            // १. ब्राउज़र से सीधे कैमरा परमिशन मांगें
-            const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: true });
-            
-            // २. अगर परमिशन मिल गई, तो स्ट्रीम बंद करें और Iframe लोड करें
-            stream.getTracks().forEach(track => track.stop());
-            
-            const frame = document.getElementById('meet-frame');
-            frame.src = `https://60483901.metered.live/${currentRoom}?skipPrejoin=true`;
-            frame.style.display = "block";
-            document.getElementById('permission-screen').style.display = "none";
-            
-        } catch (err) {
-            alert("सच यह है कि कैमरा ब्लॉक है। ब्राउज़र के 'Lock' आइकन पर जाकर Allow करें।");
-            console.error(err);
-        }
-    }
-
-    function closeVideo() {
-        document.getElementById('video-overlay').style.display = 'none';
-        const frame = document.getElementById('meet-frame');
-        frame.src = "";
-        frame.style.display = "none";
-        document.getElementById('permission-screen').style.display = "block";
+    // डार्क-लाइट मोड
+    function toggleTheme() {
+        const current = document.body.getAttribute('data-theme');
+        document.body.setAttribute('data-theme', current === 'light' ? 'dark' : 'light');
     }
 </script>
-
 </body>
 </html>
 
