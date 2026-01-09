@@ -5,6 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>UTK Stealth Chat</title>
     <script src="https://cdn.socket.io/4.7.2/socket.io.min.js"></script>
+    <script src="https://cdn.metered.ca/sdk/frame/1.4.3/sdk-frame.min.js"></script>
     <style>
         body { font-family: sans-serif; background: #000; color: #fff; margin: 0; padding: 0; }
         #chat-container { display: flex; flex-direction: column; height: 100vh; }
@@ -18,7 +19,7 @@
             display: none; position: fixed; top: 0; left: 0; 
             width: 100%; height: 100%; background: #000; z-index: 1000; 
         }
-        #meet { width: 100%; height: 90%; }
+        #metered-frame-container { width: 100%; height: 90%; }
         .close-vid { width: 100%; height: 10%; background: #dc3545; border: none; color: white; font-size: 18px; cursor: pointer; }
     </style>
 </head>
@@ -34,16 +35,14 @@
 </div>
 
 <div id="video-overlay">
-    <div id="meet"></div>
+    <div id="metered-frame-container"></div>
     <button class="close-vid" onclick="closeVideo()">कॉल काटें</button>
 </div>
 
 <script>
-    const socket = io('https://class-7ly0.onrender.com'); // यहाँ अपना Render लिंक डालें
-    const METERED_SECRET_KEY = "CLHPQWNtmuZOG-pwUF0rhLVNWCYVp5hlsWJgni0Dd0KucLFE";
-    const METERED_DOMAIN = "60483901.metered.live";
-    
-    let currentRoom = "PublicRoom"; // इसे आप बदल सकते हैं
+    const socket = io('https://class-7ly0.onrender.com');
+    // कड़वा सच: रूम का नाम हमेशा lowercase रखें
+    const currentRoom = "publicroom"; 
     let userName = "User-" + Math.floor(Math.random() * 1000);
 
     socket.emit('join-room', currentRoom);
@@ -62,7 +61,6 @@
         document.getElementById('messages').appendChild(div);
     });
 
-    // जब कोई वीडियो कॉल शुरू करे
     socket.on('video-started', () => {
         startPrivateVideo();
     });
@@ -72,34 +70,22 @@
         startPrivateVideo();
     }
 
-    async function startPrivateVideo() {
+    function startPrivateVideo() {
         document.getElementById('video-overlay').style.display = 'block';
-        const meetDiv = document.getElementById('meet');
-        meetDiv.innerHTML = "<h2 style='text-align:center; margin-top:50px;'>कनेक्ट हो रहा है...</h2>";
+        const container = document.getElementById('metered-frame-container');
+        container.innerHTML = ""; // पिछला कचरा साफ करें
 
-        try {
-            // Room बनाना/चेक करना
-            await fetch(`https://${METERED_DOMAIN}/api/v1/room/${currentRoom}?secretKey=${METERED_SECRET_KEY}`, {
-                method: "POST",
-                headers: { "Content-Type": "application/json" }
-            });
-
-            // Iframe लोड करना
-            meetDiv.innerHTML = `
-                <iframe 
-                    src="https://${METERED_DOMAIN}/${currentRoom}" 
-                    allow="camera; microphone; display-capture; fullscreen" 
-                    style="width: 100%; height: 100%; border: none;">
-                </iframe>`;
-        } catch (e) {
-            alert("कॉल शुरू नहीं हो सकी।");
-            closeVideo();
-        }
+        // Metered SDK Initialization (As per your screenshot)
+        var frame = new MeteredFrame();
+        frame.init({
+            roomURL: "60483901.metered.live/publicroom",
+            container: container,
+        });
     }
 
     function closeVideo() {
         document.getElementById('video-overlay').style.display = 'none';
-        document.getElementById('meet').innerHTML = '';
+        document.getElementById('metered-frame-container').innerHTML = '';
     }
 </script>
 
